@@ -4,19 +4,56 @@ Convert [Sonarworks SoundID Reference](https://www.sonarworks.com/soundid-refere
 
 Parses the binary `.swproj` format (reverse-engineered, not actually encrypted despite what the header claims) and exports correction curves as FIR impulse responses and EQ configs.
 
+`swproj2eq` is a compatibility tool. It is not affiliated with or endorsed by Sonarworks.
+
 ## Usage
 
 ```
-python3 swproj2eq.py path/to/profile.swproj
+python3 swproj2eq.py export path/to/profile.swproj
 ```
 
 Outputs all formats to a `_export/` directory. Optionally:
 
 ```
+python3 swproj2eq.py export profile.swproj --outdir ~/my-eq
+```
+
+Backward-compatible shortcut still works:
+
+```bash
 python3 swproj2eq.py profile.swproj --outdir ~/my-eq
 ```
 
+## Quickstart runtime (PipeWire, stereo)
+
+Set up CamillaDSP passthrough and optional default sink switch:
+
+```bash
+python3 swproj2eq.py quickstart --profile path/to/profile.swproj
+python3 swproj2eq.py quickstart --profile path/to/profile.swproj --set-default
+```
+
+Other runtime commands:
+
+```bash
+python3 swproj2eq.py status
+python3 swproj2eq.py doctor
+python3 swproj2eq.py enable --profile-id <id>
+python3 swproj2eq.py disable
+python3 swproj2eq.py rollback
+python3 swproj2eq.py uninstall
+python3 swproj2eq.py tui
+```
+
 No dependencies required. Uses numpy/scipy if available for faster IR generation, pure Python fallback otherwise.
+
+Quickstart requirements:
+
+- PipeWire stack (`pactl` available)
+- systemd user session
+- `camilladsp` binary installed
+
+If dependencies are missing, `doctor` prints install hints for Ubuntu/Fedora/Arch.
 
 ## Exports
 
@@ -59,17 +96,17 @@ The `.swproj` format (reverse-engineered):
 
 ```bash
 mkdir -p ~/.config/pipewire/filter-chain.conf.d/
-cp pipewire/sonarworks.conf ~/.config/pipewire/filter-chain.conf.d/
+cp pipewire/swproj2eq.conf ~/.config/pipewire/filter-chain.conf.d/
 cp pipewire/*.wav ~/.config/pipewire/filter-chain.conf.d/
-# edit sonarworks.conf to fix WAV paths
+# edit swproj2eq.conf to fix WAV paths
 systemctl --user restart pipewire
-pactl set-default-sink sonarworks_eq
+pactl set-default-sink swproj2eq_eq
 ```
 
 ### CamillaDSP
 
 1. Install from [releases](https://github.com/HEnquist/camilladsp/releases)
-2. Edit `camilladsp/camilladsp.yml` -- set capture/playback device names
+2. Edit `camilladsp/camilladsp.yml` -- set capture/playback device names (if using export-only mode)
 3. `camilladsp camilladsp.yml`
 4. `pactl set-default-sink CamillaDSP`
 
@@ -82,3 +119,19 @@ pactl set-default-sink sonarworks_eq
 ## License
 
 MIT
+
+## What files swproj2eq creates
+
+Only swproj2eq-managed paths are touched:
+
+- `~/.local/share/swproj2eq/profiles/<profile-id>/...`
+- `~/.local/share/swproj2eq/bin/swproj2eq-run.sh`
+- `~/.local/state/swproj2eq/state.json`
+- `~/.config/systemd/user/swproj2eq-camilla.service`
+
+No `/etc` writes in MVP.
+
+## Conflict policy
+
+- If EasyEffects is active, quickstart/enable blocks unless `--force`.
+- If another CamillaDSP process is active, quickstart/enable blocks unless `--force`.
